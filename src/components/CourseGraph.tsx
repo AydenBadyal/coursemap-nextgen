@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
   Node,
   Edge,
   addEdge,
@@ -10,8 +11,8 @@ import ReactFlow, {
   useEdgesState,
   Connection,
   MarkerType,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { Card } from '@/components/ui/card';
 
 interface CourseNode {
