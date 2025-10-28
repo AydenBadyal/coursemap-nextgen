@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { CourseSearch } from "@/components/CourseSearch";
-import CourseGraph from "@/components/CourseGraph";
+import { CourseGraph } from "@/components/CourseGraph";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Card } from "@/components/ui/card";
 
 interface CourseNode {
   id: string;
@@ -18,16 +17,11 @@ interface CourseLink {
   target: string;
 }
 
-interface GraphData {
-  nodes: CourseNode[];
-  links: CourseLink[];
-}
-
 const Index = () => {
   const [searchValue, setSearchValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [graphData, setGraphData] = useState<GraphData | null>(null);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [nodes, setNodes] = useState<CourseNode[]>([]);
+  const [links, setLinks] = useState<CourseLink[]>([]);
   const { toast } = useToast();
 
   const handleSearch = async () => {
@@ -42,8 +36,8 @@ const Index = () => {
       if (error) throw error;
 
       if (data.nodes && data.links) {
-        setGraphData(data);
-        setSelectedNode(null);
+        setNodes(data.nodes);
+        setLinks(data.links);
         
         toast({
           title: "Success!",
@@ -66,14 +60,6 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleNodeClick = (node: CourseNode) => {
-    setSelectedNode(node.id);
-    toast({
-      title: node.id,
-      description: node.title,
-    });
   };
 
   return (
@@ -101,21 +87,7 @@ const Index = () => {
             />
           </div>
 
-          {!graphData ? (
-            <Card className="p-12 text-center">
-              <p className="text-muted-foreground text-lg">
-                Search for a course to see its prerequisite tree
-              </p>
-            </Card>
-          ) : (
-            <div className="border rounded-lg bg-card overflow-hidden" style={{ height: '600px' }}>
-              <CourseGraph 
-                data={graphData}
-                activeNodeId={selectedNode}
-                onNodeClick={handleNodeClick}
-              />
-            </div>
-          )}
+          <CourseGraph nodes={nodes} links={links} />
         </div>
       </main>
     </div>
