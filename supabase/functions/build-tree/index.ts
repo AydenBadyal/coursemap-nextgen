@@ -10,6 +10,10 @@ interface Node {
   title: string;
   dept: string;
   number: string;
+  description?: string;
+  units?: string;
+  prerequisites?: string;
+  corequisites?: string;
 }
 
 interface Link {
@@ -92,6 +96,10 @@ serve(async (req) => {
           title: course.title ?? courseId,
           dept: course.dept,
           number: course.number,
+          description: course.description ?? '',
+          units: course.units ?? '',
+          prerequisites: course.prerequisites ?? '',
+          corequisites: course.corequisites ?? '',
         });
         nodeMap.set(courseId, true);
       }

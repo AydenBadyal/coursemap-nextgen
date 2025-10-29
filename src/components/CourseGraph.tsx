@@ -1,18 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { CourseDetailsDialog } from './CourseDetailsDialog';
+import { LegendDialog } from './LegendDialog';
+import { QuickSearchDialog } from './QuickSearchDialog';
+import { Info } from 'lucide-react';
 
 interface CourseNode {
   id: string;
   title: string;
   dept: string;
   number: string;
+  description?: string;
+  units?: string;
+  prerequisites?: string;
+  corequisites?: string;
   x?: number;
   y?: number;
-  fx?: number | null;
-  fy?: number | null;
+  depth?: number;
 }
 
 interface CourseLink {
@@ -30,18 +36,57 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedNode, setSelectedNode] = useState<CourseNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<CourseNode | null>(null);
+  const [showLegend, setShowLegend] = useState(false);
+  const [showQuickSearch, setShowQuickSearch] = useState(false);
+  const zoomBehaviorRef = useRef<any>(null);
 
   const resetView = useCallback(() => {
-    if (!svgRef.current) return;
+    if (!svgRef.current || !zoomBehaviorRef.current) return;
     const svg = d3.select(svgRef.current);
-    const g = svg.select('g');
     
     svg.transition()
       .duration(750)
+      .call(zoomBehaviorRef.current.transform, d3.zoomIdentity);
+  }, []);
+
+  const zoomToNode = useCallback((nodeId: string) => {
+    if (!svgRef.current || !courseNodes.length) return;
+
+    const node = courseNodes.find(n => n.id === nodeId);
+    if (!node || !node.x || !node.y) return;
+
+    const svg = d3.select(svgRef.current);
+    const container = containerRef.current;
+    if (!container) return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    const scale = 1.5;
+    const x = width / 2 - node.x * scale;
+    const y = height / 2 - node.y * scale;
+
+    svg.transition()
+      .duration(750)
       .call(
-        d3.zoom<SVGSVGElement, unknown>().transform as any,
-        d3.zoomIdentity
+        zoomBehaviorRef.current.transform,
+        d3.zoomIdentity.translate(x, y).scale(scale)
       );
+
+    setSelectedNode(node);
+  }, [courseNodes]);
+
+  // Keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setShowQuickSearch(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   useEffect(() => {
@@ -61,6 +106,60 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       return nodes.some(n => n.id === sourceId) && nodes.some(n => n.id === targetId);
     });
 
+    // Find root node (the searched course - has no outgoing edges as target)
+    const targetIds = new Set(validLinks.map(l => 
+      typeof l.target === 'object' ? l.target.id : l.target
+    ));
+    const rootNode = nodes.find(n => !targetIds.has(n.id)) || nodes[0];
+
+    // Assign depths using BFS from root
+    const depths = new Map<string, number>();
+    const queue: Array<{ id: string; depth: number }> = [{ id: rootNode.id, depth: 0 }];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const { id, depth } = queue.shift()!;
+      if (visited.has(id)) continue;
+      visited.add(id);
+      depths.set(id, depth);
+
+      // Find prerequisites (sources pointing to this node)
+      validLinks.forEach(link => {
+        const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+        const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+        
+        if (targetId === id && !visited.has(sourceId)) {
+          queue.push({ id: sourceId, depth: depth + 1 });
+        }
+      });
+    }
+
+    nodes.forEach(node => {
+      node.depth = depths.get(node.id) ?? 0;
+    });
+
+    // Group nodes by depth for hierarchical layout
+    const depthGroups = new Map<number, CourseNode[]>();
+    nodes.forEach(node => {
+      const depth = node.depth ?? 0;
+      if (!depthGroups.has(depth)) {
+        depthGroups.set(depth, []);
+      }
+      depthGroups.get(depth)!.push(node);
+    });
+
+    const maxDepth = Math.max(...Array.from(depthGroups.keys()));
+    const verticalSpacing = height / (maxDepth + 2);
+
+    // Position nodes hierarchically
+    depthGroups.forEach((nodesAtDepth, depth) => {
+      const horizontalSpacing = width / (nodesAtDepth.length + 1);
+      nodesAtDepth.forEach((node, index) => {
+        node.x = (index + 1) * horizontalSpacing;
+        node.y = (maxDepth - depth + 1) * verticalSpacing; // Reverse so root is at top
+      });
+    });
+
     const svg = d3.select(svgRef.current)
       .attr('width', width)
       .attr('height', height)
@@ -75,12 +174,15 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       });
 
     svg.call(zoom);
+    zoomBehaviorRef.current = zoom;
 
-    // Create arrow marker
-    svg.append('defs').append('marker')
-      .attr('id', 'arrowhead')
+    // Create arrow markers
+    const defs = svg.append('defs');
+    
+    defs.append('marker')
+      .attr('id', 'arrowhead-default')
       .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 25)
+      .attr('refX', 28)
       .attr('refY', 0)
       .attr('markerWidth', 6)
       .attr('markerHeight', 6)
@@ -89,39 +191,47 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       .attr('d', 'M0,-5L10,0L0,5')
       .attr('fill', 'hsl(var(--muted-foreground))');
 
-    // Find root node (node with no incoming edges)
-    const hasIncoming = new Set(validLinks.map(l => 
-      typeof l.target === 'object' ? l.target.id : l.target
-    ));
-    const rootNode = nodes.find(n => !hasIncoming.has(n.id)) || nodes[0];
+    defs.append('marker')
+      .attr('id', 'arrowhead-blue')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 28)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', 'hsl(var(--info))');
 
-    // Create force simulation
-    const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(validLinks)
-        .id((d: any) => d.id)
-        .distance(150)
-        .strength(0.5))
-      .force('charge', d3.forceManyBody().strength(-800))
-      .force('collision', d3.forceCollide().radius(50))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('x', d3.forceX(width / 2).strength(0.1))
-      .force('y', d3.forceY(height / 2).strength(0.1));
+    defs.append('marker')
+      .attr('id', 'arrowhead-gold')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 28)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', '#eab308');
 
     // Create links
     const link = g.append('g')
       .selectAll('line')
       .data(validLinks)
       .join('line')
+      .attr('class', 'graph-link')
       .attr('stroke', 'hsl(var(--muted-foreground))')
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 2)
-      .attr('marker-end', 'url(#arrowhead)');
+      .attr('marker-end', 'url(#arrowhead-default)');
 
     // Create node groups
     const node = g.append('g')
       .selectAll('g')
       .data(nodes)
       .join('g')
+      .attr('class', 'graph-node')
       .attr('cursor', 'pointer')
       .on('mouseenter', (event, d) => setHoveredNode(d))
       .on('mouseleave', () => setHoveredNode(null))
@@ -146,43 +256,109 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       .text(d => d.id)
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
-      .attr('font-size', d => d.id === rootNode.id ? 14 : 12)
+      .attr('font-size', d => d.id === rootNode.id ? 13 : 11)
       .attr('font-weight', 'bold')
       .attr('fill', 'white')
       .attr('pointer-events', 'none');
 
-    // Update positions on tick
-    simulation.on('tick', () => {
+    // Position elements
+    const updatePositions = () => {
       link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y);
+        .attr('x1', (d: any) => {
+          const source = typeof d.source === 'object' ? d.source : nodes.find(n => n.id === d.source);
+          return source?.x ?? 0;
+        })
+        .attr('y1', (d: any) => {
+          const source = typeof d.source === 'object' ? d.source : nodes.find(n => n.id === d.source);
+          return source?.y ?? 0;
+        })
+        .attr('x2', (d: any) => {
+          const target = typeof d.target === 'object' ? d.target : nodes.find(n => n.id === d.target);
+          return target?.x ?? 0;
+        })
+        .attr('y2', (d: any) => {
+          const target = typeof d.target === 'object' ? d.target : nodes.find(n => n.id === d.target);
+          return target?.y ?? 0;
+        });
 
-      node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
-    });
+      node.attr('transform', (d: any) => `translate(${d.x ?? 0},${d.y ?? 0})`);
+    };
 
-    function dragstarted(event: any, d: CourseNode) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
+    updatePositions();
+
+    // Highlight logic
+    const applyHighlight = (focusedId: string | null) => {
+      if (!focusedId) {
+        node.style('opacity', 1);
+        link
+          .style('opacity', 0.6)
+          .attr('stroke', 'hsl(var(--muted-foreground))')
+          .attr('stroke-width', 2)
+          .attr('marker-end', 'url(#arrowhead-default)');
+        return;
+      }
+
+      const connectedNodeIds = new Set([focusedId]);
+      const outgoingEdges = new Set();
+      const incomingEdges = new Set();
+
+      validLinks.forEach(linkDatum => {
+        const sourceId = typeof linkDatum.source === 'object' ? linkDatum.source.id : linkDatum.source;
+        const targetId = typeof linkDatum.target === 'object' ? linkDatum.target.id : linkDatum.target;
+
+        if (sourceId === focusedId) {
+          outgoingEdges.add(linkDatum);
+          connectedNodeIds.add(targetId);
+        }
+
+        if (targetId === focusedId) {
+          incomingEdges.add(linkDatum);
+          connectedNodeIds.add(sourceId);
+        }
+      });
+
+      node.style('opacity', (n: any) => connectedNodeIds.has(n.id) ? 1 : 0.2);
+
+      link
+        .style('opacity', (l: any) => (outgoingEdges.has(l) || incomingEdges.has(l)) ? 1 : 0.1)
+        .attr('stroke', (l: any) => {
+          if (outgoingEdges.has(l)) return 'hsl(var(--info))';
+          if (incomingEdges.has(l)) return '#eab308';
+          return 'hsl(var(--muted-foreground))';
+        })
+        .attr('stroke-width', (l: any) => (outgoingEdges.has(l) || incomingEdges.has(l)) ? 3 : 2)
+        .attr('marker-end', (l: any) => {
+          if (outgoingEdges.has(l)) return 'url(#arrowhead-blue)';
+          if (incomingEdges.has(l)) return 'url(#arrowhead-gold)';
+          return 'url(#arrowhead-default)';
+        });
+    };
+
+    // Apply highlight on hover/select
+    if (selectedNode) {
+      applyHighlight(selectedNode.id);
+    } else if (hoveredNode) {
+      applyHighlight(hoveredNode.id);
+    }
+
+    function dragstarted(event: any) {
+      d3.select(event.sourceEvent.target.parentNode).raise();
     }
 
     function dragged(event: any, d: CourseNode) {
-      d.fx = event.x;
-      d.fy = event.y;
+      d.x = event.x;
+      d.y = event.y;
+      updatePositions();
     }
 
-    function dragended(event: any, d: CourseNode) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
+    function dragended() {
+      // Nothing needed here for static layout
     }
 
     return () => {
-      simulation.stop();
+      // Cleanup
     };
-  }, [courseNodes, links]);
+  }, [courseNodes, links, selectedNode, hoveredNode]);
 
   if (!courseNodes.length) {
     return (
@@ -201,35 +377,39 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
   }
 
   return (
-    <div className="relative">
-      <div className="absolute top-4 right-4 z-10">
-        <Button onClick={resetView} variant="secondary" size="sm">
-          Reset View
-        </Button>
-      </div>
-      
-      <div ref={containerRef} className="h-[calc(100vh-200px)] w-full border rounded-lg bg-card overflow-hidden">
-        <svg ref={svgRef} className="w-full h-full" />
+    <>
+      <div className="relative">
+        <div className="absolute top-4 right-4 z-10 flex gap-2">
+          <Button onClick={() => setShowLegend(!showLegend)} variant="secondary" size="sm">
+            <Info className="h-4 w-4 mr-2" />
+            {showLegend ? 'Hide' : 'Show'} Legend
+          </Button>
+          <Button onClick={resetView} variant="secondary" size="sm">
+            Reset View
+          </Button>
+        </div>
+        
+        <div ref={containerRef} className="h-[calc(100vh-200px)] w-full border rounded-lg bg-card overflow-hidden">
+          <svg ref={svgRef} className="w-full h-full" />
+        </div>
       </div>
 
-      {(selectedNode || hoveredNode) && (
-        <Card className="absolute bottom-4 left-4 p-4 max-w-md border-primary/50 bg-card/95 backdrop-blur">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-bold text-lg text-primary">
-                {(selectedNode || hoveredNode)?.id}
-              </span>
-            </div>
-            <p className="text-sm text-foreground">
-              {(selectedNode || hoveredNode)?.title}
-            </p>
-            <div className="flex gap-2 text-xs text-muted-foreground">
-              <span className="font-semibold">Department:</span>
-              <span>{(selectedNode || hoveredNode)?.dept}</span>
-            </div>
-          </div>
-        </Card>
-      )}
-    </div>
+      <CourseDetailsDialog 
+        course={selectedNode} 
+        onClose={() => setSelectedNode(null)} 
+      />
+
+      <LegendDialog 
+        isOpen={showLegend} 
+        onClose={() => setShowLegend(false)} 
+      />
+
+      <QuickSearchDialog
+        isOpen={showQuickSearch}
+        nodes={courseNodes}
+        onClose={() => setShowQuickSearch(false)}
+        onSelectCourse={zoomToNode}
+      />
+    </>
   );
 };
