@@ -66,8 +66,14 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <main className="container mx-auto px-4 py-10">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="text-center space-y-3">
+            <h1 className="text-4xl font-extrabold tracking-tight">Welcome to SFU Course Map</h1>
+            <p className="text-muted-foreground max-w-2xl mx-auto">Type any course code in the search bar above to explore prerequisites and dependencies</p>
+            <p className="text-sm text-muted-foreground">Try: <span className="font-mono font-semibold">CMPT 225</span>, <span className="font-mono font-semibold">MACM 101</span>, <span className="font-mono font-semibold">MATH 152</span></p>
+          </div>
+
           <div className="flex justify-center">
             <CourseSearch
               value={searchValue}

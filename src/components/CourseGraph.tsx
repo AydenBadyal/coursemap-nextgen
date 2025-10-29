@@ -137,7 +137,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     // Add circles
     node.append('circle')
       .attr('r', d => d.id === rootNode.id ? 35 : 25)
-      .attr('fill', d => d.id === rootNode.id ? 'hsl(var(--primary))' : 'hsl(199 89% 48%)')
+      .attr('fill', d => d.id === rootNode.id ? 'hsl(var(--primary))' : 'hsl(var(--info))')
       .attr('stroke', 'hsl(var(--card))')
       .attr('stroke-width', 3);
 
