@@ -66,18 +66,8 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl font-bold">
-              Explore Course Prerequisites
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Enter any SFU course code to visualize its complete prerequisite tree. 
-              See which courses you need to take before enrolling.
-            </p>
-          </div>
-
+      <main className="container mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex justify-center">
             <CourseSearch
               value={searchValue}
