@@ -242,6 +242,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       .on('mouseleave', () => setHoveredNode(null))
       .on('click', (event, d) => {
         event.stopPropagation();
+        console.log('Node clicked:', d); // Debug log
         setSelectedNode(d);
       })
       .call(d3.drag<any, CourseNode>()
@@ -361,11 +362,15 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     };
   }, [courseNodes, links, selectedNode, hoveredNode]);
 
+  if (!courseNodes.length) {
+    return null;
+  }
 
   return (
     <>
       <div className="relative">
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
+        {/* Left side buttons */}
+        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
           <Button onClick={() => setShowLegend(!showLegend)} variant="secondary" size="sm">
             <Info className="h-4 w-4 mr-2" />
             {showLegend ? 'Hide' : 'Show'} Legend
@@ -375,7 +380,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           </Button>
         </div>
         
-        <div ref={containerRef} className="h-[calc(100vh-200px)] w-full overflow-hidden" style={{ backgroundColor: 'hsl(var(--background))' }}>
+        <div ref={containerRef} className="h-[calc(100vh-140px)] w-full overflow-hidden" style={{ backgroundColor: 'hsl(var(--background))' }}>
           <svg ref={svgRef} className="w-full h-full" />
         </div>
       </div>
