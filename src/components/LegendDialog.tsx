@@ -102,6 +102,14 @@ export const LegendDialog = ({ isOpen, onClose }: LegendDialogProps) => {
                 </div>
               </div>
 
+              <div className="flex items-center gap-3">
+                <div className="w-12 border-t-2 border-dashed border-muted-foreground flex-shrink-0" />
+                <div className="flex-1">
+                  <span className="font-semibold text-sm">Dashed edge:</span>
+                  <span className="text-sm text-muted-foreground"> "OR" choice between courses.</span>
+                </div>
+              </div>
+
               <p className="text-xs text-muted-foreground italic mt-4">
                 • Details card keeps its course highlighted until you close it.
               </p>

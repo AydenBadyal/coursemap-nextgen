@@ -19,6 +19,7 @@ interface Node {
 interface Link {
   source: string;
   target: string;
+  type?: 'AND' | 'OR';
 }
 
 serve(async (req) => {
@@ -124,16 +125,25 @@ serve(async (req) => {
           throw new Error(`Unexpected response from parse-prerequisites: ${txt.slice(0, 200)}`);
         }
 
-        const { courses: prereqCourses = [] } = await parseRes.json();
+        const { courses: prereqCourses = [], groups = [] } = await parseRes.json();
 
         for (const prereqStr of prereqCourses as string[]) {
           const p = parseCourse(prereqStr);
           if (!p) continue;
           const prereqId = `${p.dept} ${p.number}${p.suffix}`;
 
+          // Determine link type using parsed groups (OR groups)
+          const orSet = new Set<string>();
+          for (const g of (groups as Array<{ type?: string; items?: string[] }>) ?? []) {
+            if (g && g.type === 'OR' && Array.isArray(g.items)) {
+              for (const c of g.items) orSet.add(c);
+            }
+          }
+
           // Avoid duplicate links
           if (!links.find((l) => l.source === prereqId && l.target === courseId)) {
-            links.push({ source: prereqId, target: courseId });
+            const type = orSet.has(prereqId) ? 'OR' : 'AND';
+            links.push({ source: prereqId, target: courseId, type });
           }
 
           await fetchPrerequisites(prereqStr, depth + 1);

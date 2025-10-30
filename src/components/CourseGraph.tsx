@@ -24,6 +24,7 @@ interface CourseNode {
 interface CourseLink {
   source: string | CourseNode;
   target: string | CourseNode;
+  type?: 'AND' | 'OR';
 }
 
 interface CourseGraphProps {
@@ -106,11 +107,11 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       return nodes.some(n => n.id === sourceId) && nodes.some(n => n.id === targetId);
     });
 
-    // Find root node (the searched course - has no outgoing edges as target)
-    const targetIds = new Set(validLinks.map(l => 
-      typeof l.target === 'object' ? l.target.id : l.target
+    // Find root node (the searched course - sink with no outgoing edges as source)
+    const sourceIds = new Set(validLinks.map(l => 
+      typeof l.source === 'object' ? l.source.id : l.source
     ));
-    const rootNode = nodes.find(n => !targetIds.has(n.id)) || nodes[0];
+    const rootNode = nodes.find(n => !sourceIds.has(n.id)) || nodes[0];
 
     // Assign depths using BFS from root
     const depths = new Map<string, number>();
@@ -153,6 +154,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
 
     // Position nodes hierarchically
     depthGroups.forEach((nodesAtDepth, depth) => {
+      nodesAtDepth.sort((a, b) => a.id.localeCompare(b.id));
       const horizontalSpacing = width / (nodesAtDepth.length + 1);
       nodesAtDepth.forEach((node, index) => {
         node.x = (index + 1) * horizontalSpacing;
@@ -215,15 +217,17 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       .attr('d', 'M0,-5L10,0L0,5')
       .attr('fill', '#eab308');
 
-    // Create links
+    // Create links (curved paths)
     const link = g.append('g')
-      .selectAll('line')
-      .data(validLinks)
-      .join('line')
+      .selectAll('path')
+      .data(validLinks as any)
+      .join('path')
       .attr('class', 'graph-link')
+      .attr('fill', 'none')
       .attr('stroke', 'hsl(var(--muted-foreground))')
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 2)
+      .attr('stroke-dasharray', (l: any) => (l.type === 'OR' ? '6,4' : null))
       .attr('marker-end', 'url(#arrowhead-default)');
 
     // Create node groups
@@ -264,21 +268,15 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     // Position elements
     const updatePositions = () => {
       link
-        .attr('x1', (d: any) => {
+        .attr('d', (d: any) => {
           const source = typeof d.source === 'object' ? d.source : nodes.find(n => n.id === d.source);
-          return source?.x ?? 0;
-        })
-        .attr('y1', (d: any) => {
-          const source = typeof d.source === 'object' ? d.source : nodes.find(n => n.id === d.source);
-          return source?.y ?? 0;
-        })
-        .attr('x2', (d: any) => {
           const target = typeof d.target === 'object' ? d.target : nodes.find(n => n.id === d.target);
-          return target?.x ?? 0;
-        })
-        .attr('y2', (d: any) => {
-          const target = typeof d.target === 'object' ? d.target : nodes.find(n => n.id === d.target);
-          return target?.y ?? 0;
+          const x1 = source?.x ?? 0;
+          const y1 = source?.y ?? 0;
+          const x2 = target?.x ?? 0;
+          const y2 = target?.y ?? 0;
+          // Smooth vertical curve
+          return `M${x1},${y1} C ${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`;
         });
 
       node.attr('transform', (d: any) => `translate(${d.x ?? 0},${d.y ?? 0})`);
@@ -294,6 +292,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           .style('opacity', 0.6)
           .attr('stroke', 'hsl(var(--muted-foreground))')
           .attr('stroke-width', 2)
+          .attr('stroke-dasharray', (l: any) => (l.type === 'OR' ? '6,4' : null))
           .attr('marker-end', 'url(#arrowhead-default)');
         return;
       }
@@ -327,6 +326,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           return 'hsl(var(--muted-foreground))';
         })
         .attr('stroke-width', (l: any) => (outgoingEdges.has(l) || incomingEdges.has(l)) ? 3 : 2)
+        .attr('stroke-dasharray', (l: any) => (l.type === 'OR' ? '6,4' : null))
         .attr('marker-end', (l: any) => {
           if (outgoingEdges.has(l)) return 'url(#arrowhead-blue)';
           if (incomingEdges.has(l)) return 'url(#arrowhead-gold)';

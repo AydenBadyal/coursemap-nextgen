@@ -36,23 +36,46 @@ serve(async (req) => {
       /^(MATH|CHEM|PHYS|ENGL|BIO)\s*12[A-Z]*$/i,
     ];
 
-    matches.forEach(match => {
-      const dept = match[1].toUpperCase();
-      const number = match[2];
-      const suffix = match[3] ? match[3].toUpperCase() : '';
-      const courseCode = `${dept} ${number}${suffix}`;
+    type CourseMatch = { code: string; start: number; end: number };
+    const filteredMatches: CourseMatch[] = matches
+      .map((match) => {
+        const dept = match[1].toUpperCase();
+        const number = match[2];
+        const suffix = match[3] ? match[3].toUpperCase() : '';
+        const courseCode = `${dept} ${number}${suffix}`;
+        const start = match.index ?? 0;
+        const end = start + match[0].length;
+        return { code: courseCode, start, end };
+      })
+      .filter(({ code }) => !excludePatterns.some((pattern) => pattern.test(code)));
 
-      const shouldExclude = excludePatterns.some(pattern => pattern.test(courseCode));
-      
-      if (!shouldExclude) {
-        coursesSet.add(courseCode);
-      }
-    });
-
+    // Build unique list for quick checks
+    filteredMatches.forEach(({ code }) => coursesSet.add(code));
     const courses = Array.from(coursesSet);
 
+    // Heuristic grouping: consecutive courses separated by "or", "/" or phrases like "either" / "one of"
+    const lower = prerequisiteText.toLowerCase();
+    const orGroups: string[][] = [];
+    let current: string[] = [];
+    for (let i = 0; i < filteredMatches.length - 1; i++) {
+      const a = filteredMatches[i];
+      const b = filteredMatches[i + 1];
+      const between = lower.slice(a.end, b.start);
+      const hasOr = /\bor\b|\/|either|one of/.test(between);
+      if (hasOr) {
+        if (current.length === 0) current.push(a.code);
+        current.push(b.code);
+      } else {
+        if (current.length > 1) orGroups.push([...new Set(current)]);
+        current = [];
+      }
+    }
+    if (current.length > 1) orGroups.push([...new Set(current)]);
+
+    const groups = orGroups.map((items) => ({ type: 'OR' as const, items }));
+
     return new Response(
-      JSON.stringify({ courses }),
+      JSON.stringify({ courses, groups }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200 
