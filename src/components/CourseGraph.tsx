@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CourseDetailsDialog } from './CourseDetailsDialog';
-import { LegendDialog } from './LegendDialog';
-import { QuickSearchDialog } from './QuickSearchDialog';
-import { Info } from 'lucide-react';
+import { Info, X } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface CourseNode {
   id: string;
@@ -38,8 +35,11 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
   const [selectedNode, setSelectedNode] = useState<CourseNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<CourseNode | null>(null);
   const [showLegend, setShowLegend] = useState(false);
-  const [showQuickSearch, setShowQuickSearch] = useState(false);
   const zoomBehaviorRef = useRef<any>(null);
+
+  useEffect(() => {
+    console.log('🔔 Selected node state:', selectedNode);
+  }, [selectedNode]);
 
   const resetView = useCallback(() => {
     if (!svgRef.current || !zoomBehaviorRef.current) return;
@@ -50,47 +50,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       .call(zoomBehaviorRef.current.transform, d3.zoomIdentity);
   }, []);
 
-  const zoomToNode = useCallback((nodeId: string) => {
-    if (!svgRef.current || !courseNodes.length) return;
-
-    const node = courseNodes.find(n => n.id === nodeId);
-    if (!node || !node.x || !node.y) return;
-
-    const svg = d3.select(svgRef.current);
-    const container = containerRef.current;
-    if (!container) return;
-
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-
-    const scale = 1.5;
-    const x = width / 2 - node.x * scale;
-    const y = height / 2 - node.y * scale;
-
-    svg.transition()
-      .duration(750)
-      .call(
-        zoomBehaviorRef.current.transform,
-        d3.zoomIdentity.translate(x, y).scale(scale)
-      );
-
-    // Show the course details when zooming from search
-    setSelectedNode(node);
-  }, [courseNodes]);
-
-  // Keyboard shortcut listener
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        setShowQuickSearch(true);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   useEffect(() => {
     if (!svgRef.current || !courseNodes.length || !containerRef.current) return;
 
@@ -98,7 +57,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // Clear previous graph
     d3.select(svgRef.current).selectAll('*').remove();
 
     const nodes = courseNodes.map(d => ({ ...d }));
@@ -108,13 +66,11 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       return nodes.some(n => n.id === sourceId) && nodes.some(n => n.id === targetId);
     });
 
-    // Find root node (the searched course - sink with no outgoing edges as source)
     const sourceIds = new Set(validLinks.map(l => 
       typeof l.source === 'object' ? l.source.id : l.source
     ));
     const rootNode = nodes.find(n => !sourceIds.has(n.id)) || nodes[0];
 
-    // Assign depths using BFS from root
     const depths = new Map<string, number>();
     const queue: Array<{ id: string; depth: number }> = [{ id: rootNode.id, depth: 0 }];
     const visited = new Set<string>();
@@ -125,7 +81,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       visited.add(id);
       depths.set(id, depth);
 
-      // Find prerequisites (sources pointing to this node)
       validLinks.forEach(link => {
         const targetId = typeof link.target === 'object' ? link.target.id : link.target;
         const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
@@ -140,7 +95,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       node.depth = depths.get(node.id) ?? 0;
     });
 
-    // Group nodes by depth for hierarchical layout
     const depthGroups = new Map<number, CourseNode[]>();
     nodes.forEach(node => {
       const depth = node.depth ?? 0;
@@ -153,13 +107,12 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     const maxDepth = Math.max(...Array.from(depthGroups.keys()));
     const verticalSpacing = height / (maxDepth + 2);
 
-    // Position nodes hierarchically
     depthGroups.forEach((nodesAtDepth, depth) => {
       nodesAtDepth.sort((a, b) => a.id.localeCompare(b.id));
       const horizontalSpacing = width / (nodesAtDepth.length + 1);
       nodesAtDepth.forEach((node, index) => {
         node.x = (index + 1) * horizontalSpacing;
-        node.y = (maxDepth - depth + 1) * verticalSpacing; // Reverse so root is at top
+        node.y = (maxDepth - depth + 1) * verticalSpacing;
       });
     });
 
@@ -179,46 +132,23 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     svg.call(zoom);
     zoomBehaviorRef.current = zoom;
 
-    // Create arrow markers
     const defs = svg.append('defs');
     
-    defs.append('marker')
-      .attr('id', 'arrowhead-default')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 28)
-      .attr('refY', 0)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', 'hsl(var(--muted-foreground))');
+    ['default', 'blue', 'gold'].forEach((type) => {
+      const color = type === 'blue' ? 'hsl(var(--info))' : type === 'gold' ? '#eab308' : 'hsl(var(--muted-foreground))';
+      defs.append('marker')
+        .attr('id', `arrowhead-${type}`)
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 28)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', color);
+    });
 
-    defs.append('marker')
-      .attr('id', 'arrowhead-blue')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 28)
-      .attr('refY', 0)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', 'hsl(var(--info))');
-
-    defs.append('marker')
-      .attr('id', 'arrowhead-gold')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 28)
-      .attr('refY', 0)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', '#eab308');
-
-    // Create links (curved paths)
     const link = g.append('g')
       .selectAll('path')
       .data(validLinks as any)
@@ -231,33 +161,19 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       .attr('stroke-dasharray', (l: any) => (l.type === 'OR' ? '6,4' : null))
       .attr('marker-end', 'url(#arrowhead-default)');
 
-    // Create node groups
     const node = g.append('g')
       .selectAll('g')
       .data(nodes)
       .join('g')
       .attr('class', 'graph-node')
-      .attr('cursor', 'pointer')
-      .on('mouseenter', (event, d) => setHoveredNode(d))
-      .on('mouseleave', () => setHoveredNode(null))
-      .on('click', (event, d) => {
-        event.stopPropagation();
-        console.log('Node clicked:', d); // Debug log
-        setSelectedNode(d);
-      })
-      .call(d3.drag<any, CourseNode>()
-        .on('start', dragstarted)
-        .on('drag', dragged)
-        .on('end', dragended));
+      .attr('cursor', 'pointer');
 
-    // Add circles
     node.append('circle')
       .attr('r', d => d.id === rootNode.id ? 35 : 25)
       .attr('fill', d => d.id === rootNode.id ? 'hsl(var(--primary))' : 'hsl(var(--info))')
       .attr('stroke', 'hsl(var(--card))')
       .attr('stroke-width', 3);
 
-    // Add labels
     node.append('text')
       .text(d => d.id)
       .attr('text-anchor', 'middle')
@@ -267,26 +183,20 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       .attr('fill', 'white')
       .attr('pointer-events', 'none');
 
-    // Position elements
     const updatePositions = () => {
-      link
-        .attr('d', (d: any) => {
-          const source = typeof d.source === 'object' ? d.source : nodes.find(n => n.id === d.source);
-          const target = typeof d.target === 'object' ? d.target : nodes.find(n => n.id === d.target);
-          const x1 = source?.x ?? 0;
-          const y1 = source?.y ?? 0;
-          const x2 = target?.x ?? 0;
-          const y2 = target?.y ?? 0;
-          // Smooth vertical curve
-          return `M${x1},${y1} C ${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`;
-        });
+      link.attr('d', (d: any) => {
+        const source = typeof d.source === 'object' ? d.source : nodes.find(n => n.id === d.source);
+        const target = typeof d.target === 'object' ? d.target : nodes.find(n => n.id === d.target);
+        const x1 = source?.x ?? 0;
+        const y1 = source?.y ?? 0;
+        const x2 = target?.x ?? 0;
+        const y2 = target?.y ?? 0;
+        return `M${x1},${y1} C ${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`;
+      });
 
       node.attr('transform', (d: any) => `translate(${d.x ?? 0},${d.y ?? 0})`);
     };
 
-    updatePositions();
-
-    // Highlight logic
     const applyHighlight = (focusedId: string | null) => {
       if (!focusedId) {
         node.style('opacity', 1);
@@ -294,7 +204,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           .style('opacity', 0.6)
           .attr('stroke', 'hsl(var(--muted-foreground))')
           .attr('stroke-width', 2)
-          .attr('stroke-dasharray', (l: any) => (l.type === 'OR' ? '6,4' : null))
           .attr('marker-end', 'url(#arrowhead-default)');
         return;
       }
@@ -311,7 +220,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           outgoingEdges.add(linkDatum);
           connectedNodeIds.add(targetId);
         }
-
         if (targetId === focusedId) {
           incomingEdges.add(linkDatum);
           connectedNodeIds.add(sourceId);
@@ -319,7 +227,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
       });
 
       node.style('opacity', (n: any) => connectedNodeIds.has(n.id) ? 1 : 0.2);
-
       link
         .style('opacity', (l: any) => (outgoingEdges.has(l) || incomingEdges.has(l)) ? 1 : 0.1)
         .attr('stroke', (l: any) => {
@@ -328,7 +235,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           return 'hsl(var(--muted-foreground))';
         })
         .attr('stroke-width', (l: any) => (outgoingEdges.has(l) || incomingEdges.has(l)) ? 3 : 2)
-        .attr('stroke-dasharray', (l: any) => (l.type === 'OR' ? '6,4' : null))
         .attr('marker-end', (l: any) => {
           if (outgoingEdges.has(l)) return 'url(#arrowhead-blue)';
           if (incomingEdges.has(l)) return 'url(#arrowhead-gold)';
@@ -336,30 +242,52 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
         });
     };
 
-    // Apply highlight on hover/select
+    // Track if drag actually happened
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragMoved = false;
+
+    node.call(d3.drag<any, CourseNode>()
+      .on('start', function(event) {
+        dragStartX = event.x;
+        dragStartY = event.y;
+        dragMoved = false;
+        d3.select(this).raise();
+      })
+      .on('drag', function(event, d) {
+        const dx = Math.abs(event.x - dragStartX);
+        const dy = Math.abs(event.y - dragStartY);
+        if (dx > 5 || dy > 5) {
+          dragMoved = true;
+        }
+        d.x = event.x;
+        d.y = event.y;
+        updatePositions();
+      })
+      .on('end', function(event, d) {
+        // Only trigger click if we didn't actually drag
+        if (!dragMoved) {
+          console.log('🎯 CLICK DETECTED on:', d.id);
+          setSelectedNode(d);
+        }
+      }));
+
+    node
+      .on('mouseenter', function(event, d) {
+        setHoveredNode(d);
+      })
+      .on('mouseleave', function() {
+        setHoveredNode(null);
+      });
+
+    updatePositions();
+    
     if (selectedNode) {
       applyHighlight(selectedNode.id);
     } else if (hoveredNode) {
       applyHighlight(hoveredNode.id);
     }
 
-    function dragstarted(event: any) {
-      d3.select(event.sourceEvent.target.parentNode).raise();
-    }
-
-    function dragged(event: any, d: CourseNode) {
-      d.x = event.x;
-      d.y = event.y;
-      updatePositions();
-    }
-
-    function dragended() {
-      // Nothing needed here for static layout
-    }
-
-    return () => {
-      // Cleanup
-    };
   }, [courseNodes, links, selectedNode, hoveredNode]);
 
   if (!courseNodes.length) {
@@ -369,7 +297,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
   return (
     <>
       <div className="relative">
-        {/* Left side buttons */}
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
           <Button onClick={() => setShowLegend(!showLegend)} variant="secondary" size="sm">
             <Info className="h-4 w-4 mr-2" />
@@ -385,22 +312,115 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
         </div>
       </div>
 
-      <CourseDetailsDialog 
-        course={selectedNode} 
-        onClose={() => setSelectedNode(null)} 
-      />
+      {/* Course Details Dialog */}
+      {selectedNode && (
+        <div className="fixed left-4 top-20 bottom-4 w-96 bg-[#1a1f2e] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+            <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wide">Course Spotlight</h3>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => {
+                console.log('❌ Closing dialog');
+                setSelectedNode(null);
+              }} 
+              className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-800"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-6">
+              <div>
+                <h2 className="text-3xl font-bold mb-3 text-white">{selectedNode.id}</h2>
+                <p className="text-lg text-gray-300 font-normal leading-relaxed">{selectedNode.title}</p>
+              </div>
 
-      <LegendDialog 
-        isOpen={showLegend} 
-        onClose={() => setShowLegend(false)} 
-      />
+              {selectedNode.units && (
+                <div className="inline-block px-4 py-1.5 bg-blue-500/20 border border-blue-500/50 rounded-full">
+                  <span className="text-xs font-semibold text-blue-300 uppercase tracking-wide">{selectedNode.units}</span>
+                </div>
+              )}
 
-      <QuickSearchDialog
-        isOpen={showQuickSearch}
-        nodes={courseNodes}
-        onClose={() => setShowQuickSearch(false)}
-        onSelectCourse={zoomToNode}
-      />
+              {selectedNode.description && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Overview</h4>
+                  <p className="text-sm text-gray-300 leading-relaxed">{selectedNode.description}</p>
+                </div>
+              )}
+
+              {selectedNode.prerequisites && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Prerequisites</h4>
+                  <p className="text-sm text-gray-400 leading-relaxed">{selectedNode.prerequisites}</p>
+                </div>
+              )}
+
+              {selectedNode.corequisites && (
+                <div>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Corequisites</h4>
+                  <p className="text-sm text-gray-400 leading-relaxed">{selectedNode.corequisites}</p>
+                </div>
+              )}
+
+              {!selectedNode.description && !selectedNode.prerequisites && !selectedNode.corequisites && (
+                <div className="text-sm text-gray-500 italic">
+                  No additional details available for this course.
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Legend Dialog */}
+      {showLegend && (
+        <div className="fixed left-4 bottom-4 w-96 bg-[#1a1f2e] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col max-h-[70vh]">
+          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+            <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wide">How to Explore</h3>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setShowLegend(false)} 
+              className="h-8 w-8 text-gray-400 hover:text-white hover:bg-gray-800"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-6">
+              <div className="space-y-3 text-sm text-gray-300">
+                <p>• <span className="font-semibold text-white">Click</span> a course to open its details card.</p>
+                <p>• <span className="font-semibold text-white">Drag</span> nodes to reposition them.</p>
+                <p>• <span className="font-semibold text-white">Scroll</span> to zoom in or out.</p>
+                <p>• <span className="font-semibold text-white">Hover</span> to highlight relationships.</p>
+              </div>
+
+              <div className="border-t border-gray-700 pt-6">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Color Legend</h4>
+                
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-red-500 border-2 border-white flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-red-400">Red node: course you searched</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-400">Blue node: prerequisites</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+        </div>
+      )}
     </>
   );
 };
