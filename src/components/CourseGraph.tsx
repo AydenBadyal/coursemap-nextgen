@@ -361,21 +361,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     };
   }, [courseNodes, links, selectedNode, hoveredNode]);
 
-  if (!courseNodes.length) {
-    return (
-      <Card className="p-12 text-center border-muted">
-        <div className="space-y-4">
-          <h3 className="text-2xl font-bold">Welcome to SFU Course Map</h3>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Type any course code in the search bar above to explore prerequisites and dependencies
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Try: <span className="font-mono font-semibold">CMPT 225</span>, <span className="font-mono font-semibold">MACM 101</span>, <span className="font-mono font-semibold">MATH 152</span>
-          </p>
-        </div>
-      </Card>
-    );
-  }
 
   return (
     <>
