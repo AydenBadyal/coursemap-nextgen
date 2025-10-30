@@ -74,6 +74,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
         d3.zoomIdentity.translate(x, y).scale(scale)
       );
 
+    // Show the course details when zooming from search
     setSelectedNode(node);
   }, [courseNodes]);
 
@@ -389,7 +390,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           </Button>
         </div>
         
-        <div ref={containerRef} className="h-[calc(100vh-200px)] w-full border rounded-lg bg-card overflow-hidden">
+        <div ref={containerRef} className="h-[calc(100vh-200px)] w-full border rounded-lg overflow-hidden" style={{ backgroundColor: 'hsl(var(--background))' }}>
           <svg ref={svgRef} className="w-full h-full" />
         </div>
       </div>

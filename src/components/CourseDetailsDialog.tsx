@@ -22,9 +22,9 @@ export const CourseDetailsDialog = ({ course, onClose }: CourseDetailsDialogProp
   if (!course) return null;
 
   return (
-    <div className="fixed left-4 top-24 bottom-4 w-80 bg-card border border-border rounded-lg shadow-2xl z-50 flex flex-col">
+    <div className="fixed right-4 top-24 bottom-4 w-80 bg-card border border-border rounded-lg shadow-2xl z-50 flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border">
-        <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">Course Spotlight</h3>
+        <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">Course Details</h3>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
           <X className="h-4 w-4" />
         </Button>
