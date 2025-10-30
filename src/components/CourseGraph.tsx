@@ -390,7 +390,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
           </Button>
         </div>
         
-        <div ref={containerRef} className="h-[calc(100vh-200px)] w-full border rounded-lg overflow-hidden" style={{ backgroundColor: 'hsl(var(--background))' }}>
+        <div ref={containerRef} className="h-[calc(100vh-200px)] w-full overflow-hidden" style={{ backgroundColor: 'hsl(var(--background))' }}>
           <svg ref={svgRef} className="w-full h-full" />
         </div>
       </div>
