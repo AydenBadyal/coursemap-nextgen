@@ -27,9 +27,10 @@ interface CourseLink {
 interface CourseGraphProps {
   nodes: CourseNode[];
   links: CourseLink[];
+  onResetView?: () => void;
 }
 
-export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => {
+export const CourseGraph = ({ nodes: courseNodes, links, onResetView }: CourseGraphProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedNode, setSelectedNode] = useState<CourseNode | null>(null);
@@ -48,7 +49,12 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
     svg.transition()
       .duration(750)
       .call(zoomBehaviorRef.current.transform, d3.zoomIdentity);
-  }, []);
+    
+    // Call the parent's reset handler if provided
+    if (onResetView) {
+      onResetView();
+    }
+  }, [onResetView]);
 
   useEffect(() => {
     if (!svgRef.current || !courseNodes.length || !containerRef.current) return;
@@ -242,7 +248,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
         });
     };
 
-    // Track if drag actually happened
     let dragStartX = 0;
     let dragStartY = 0;
     let dragMoved = false;
@@ -265,7 +270,6 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
         updatePositions();
       })
       .on('end', function(event, d) {
-        // Only trigger click if we didn't actually drag
         if (!dragMoved) {
           console.log('🎯 CLICK DETECTED on:', d.id);
           setSelectedNode(d);
@@ -290,6 +294,16 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
 
   }, [courseNodes, links, selectedNode, hoveredNode]);
 
+  // Expose resetView to parent via a custom event
+  useEffect(() => {
+    // Store the reset function on the window for the Navbar to call
+    (window as any).courseGraphResetView = resetView;
+    
+    return () => {
+      delete (window as any).courseGraphResetView;
+    };
+  }, [resetView]);
+
   if (!courseNodes.length) {
     return null;
   }
@@ -297,13 +311,11 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
   return (
     <>
       <div className="relative">
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        {/* Legend button on the right */}
+        <div className="absolute top-4 right-4 z-10">
           <Button onClick={() => setShowLegend(!showLegend)} variant="secondary" size="sm">
             <Info className="h-4 w-4 mr-2" />
             {showLegend ? 'Hide' : 'Show'} Legend
-          </Button>
-          <Button onClick={resetView} variant="secondary" size="sm">
-            Reset View
           </Button>
         </div>
         
@@ -312,7 +324,7 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
         </div>
       </div>
 
-      {/* Course Details Dialog */}
+      {/* Course Details Dialog - Left side */}
       {selectedNode && (
         <div className="fixed left-4 top-20 bottom-4 w-96 bg-[#1a1f2e] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col">
           <div className="flex items-center justify-between p-4 border-b border-gray-700">
@@ -374,9 +386,9 @@ export const CourseGraph = ({ nodes: courseNodes, links }: CourseGraphProps) => 
         </div>
       )}
 
-      {/* Legend Dialog */}
+      {/* Legend Dialog - Right side */}
       {showLegend && (
-        <div className="fixed left-4 bottom-4 w-96 bg-[#1a1f2e] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col max-h-[70vh]">
+        <div className="fixed right-4 top-20 bottom-4 w-96 bg-[#1a1f2e] border border-gray-700 rounded-lg shadow-2xl z-50 flex flex-col">
           <div className="flex items-center justify-between p-4 border-b border-gray-700">
             <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wide">How to Explore</h3>
             <Button 
