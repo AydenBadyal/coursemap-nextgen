@@ -297,6 +297,7 @@ export const CourseGraph = ({ nodes: courseNodes, links, onResetView }: CourseGr
 
     updatePositions();
     
+    // Apply highlighting based on current state
     if (selectedNode) {
       applyHighlight(selectedNode.id);
     } else if (hoveredNode) {
