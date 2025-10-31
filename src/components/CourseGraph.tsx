@@ -290,6 +290,8 @@ export const CourseGraph = ({ nodes: courseNodes, links, onResetView }: CourseGr
       applyHighlight(selectedNode.id);
     } else if (hoveredNode) {
       applyHighlight(hoveredNode.id);
+    } else {
+      applyHighlight(null);
     }
 
   }, [courseNodes, links, selectedNode, hoveredNode]);
