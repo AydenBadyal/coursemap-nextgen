@@ -278,10 +278,21 @@ export const CourseGraph = ({ nodes: courseNodes, links, onResetView }: CourseGr
 
     node
       .on('mouseenter', function(event, d) {
-        setHoveredNode(d);
+        if (!selectedNode) {
+          setHoveredNode(d);
+        }
       })
       .on('mouseleave', function() {
-        setHoveredNode(null);
+        if (!selectedNode) {
+          setHoveredNode(null);
+          // Immediately reset the view
+          node.style('opacity', 1);
+          link
+            .style('opacity', 0.6)
+            .attr('stroke', 'hsl(var(--muted-foreground))')
+            .attr('stroke-width', 2)
+            .attr('marker-end', 'url(#arrowhead-default)');
+        }
       });
 
     updatePositions();

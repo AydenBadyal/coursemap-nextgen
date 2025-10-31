@@ -35,7 +35,10 @@ export const LegendDialog = ({ isOpen, onClose }: LegendDialogProps) => {
               • <span className="font-semibold text-white">Scroll / pinch</span> anywhere to zoom in or out of the graph.
             </p>
             <p>
-              • <span className="font-semibold text-white">Ctrl+F / ⌘F</span> opens quick search. Type to find courses, use ↑↓ arrows to navigate, Enter to jump to a course.
+              • <span className="font-semibold text-white">Pan/drag background</span> to move around the graph view.
+            </p>
+            <p>
+              • <span className="font-semibold text-white">Ctrl+F / ⌘F</span> opens quick search. Type to find courses, use ↑↓ arrows to navigate, Enter to jump to a course and view its details.
             </p>
             <p>
               • <span className="font-semibold text-white">Reset View</span> button in the navbar returns the graph to its original position and zoom level.
@@ -50,22 +53,22 @@ export const LegendDialog = ({ isOpen, onClose }: LegendDialogProps) => {
                 <div className="w-6 h-6 rounded-full bg-red-500 border-2 border-white flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-red-400">Red node</p>
-                  <p className="text-xs text-gray-400">The course you searched for (root of the tree)</p>
+                  <p className="text-xs text-gray-400">The course you searched for (root of the tree). This is your target course and all other courses shown are its prerequisites.</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-blue-400">Blue node</p>
-                  <p className="text-xs text-gray-400">Prerequisites and related courses in the tree</p>
+                  <p className="text-sm font-medium text-blue-400">Blue nodes</p>
+                  <p className="text-xs text-gray-400">Prerequisites and related courses in the tree. These must be completed before taking the red course.</p>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="border-t border-gray-700 pt-6">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Edge Types</h4>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Edge Types (Prerequisite Logic)</h4>
             
             <div className="space-y-3">
               <div className="flex items-start gap-3">
@@ -76,7 +79,7 @@ export const LegendDialog = ({ isOpen, onClose }: LegendDialogProps) => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-400">Solid edge (AND)</p>
-                  <p className="text-xs text-gray-400">All prerequisites connected with solid lines are required</p>
+                  <p className="text-xs text-gray-400">All prerequisites connected with solid lines are required. You must complete ALL of them to proceed.</p>
                 </div>
               </div>
 
@@ -88,14 +91,14 @@ export const LegendDialog = ({ isOpen, onClose }: LegendDialogProps) => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-400">Dashed edge (OR)</p>
-                  <p className="text-xs text-gray-400">Only one of the courses connected with dashed lines is required</p>
+                  <p className="text-xs text-gray-400">Only one of the courses connected with dashed lines is required. Choose any one from the group to satisfy the prerequisite.</p>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="border-t border-gray-700 pt-6">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Hover Colors</h4>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Hover Highlight Colors</h4>
             
             <div className="space-y-3">
               <div className="flex items-start gap-3">
@@ -106,7 +109,7 @@ export const LegendDialog = ({ isOpen, onClose }: LegendDialogProps) => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-blue-400">Blue edges (outgoing)</p>
-                  <p className="text-xs text-gray-400">Courses that this prerequisite unlocks</p>
+                  <p className="text-xs text-gray-400">Shows courses that this prerequisite unlocks. These are the courses you can take AFTER completing the hovered course.</p>
                 </div>
               </div>
 
@@ -118,15 +121,39 @@ export const LegendDialog = ({ isOpen, onClose }: LegendDialogProps) => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-yellow-500">Gold edges (incoming)</p>
-                  <p className="text-xs text-gray-400">Prerequisites required for this course</p>
+                  <p className="text-xs text-gray-400">Shows prerequisites required for the hovered course. These are the courses you must complete BEFORE taking the hovered course.</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="text-xs text-gray-500 pt-4 border-t border-gray-700">
-            <p className="mb-2">• When you click a course, its details panel stays open and the highlight persists until you close it.</p>
-            <p>• When you hover over a course, unhovering will reset the view back to normal.</p>
+          <div className="border-t border-gray-700 pt-6">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Understanding the Tree Structure</h4>
+            <div className="space-y-2 text-xs text-gray-400">
+              <p>• The tree flows from bottom to top: prerequisites at the bottom, target course at the top.</p>
+              <p>• Arrows point from prerequisites TO the courses they unlock.</p>
+              <p>• The depth of a node indicates how many prerequisite layers exist between it and the target course.</p>
+              <p>• Nodes at the same horizontal level are at the same depth in the prerequisite chain.</p>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-700 pt-6">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Interaction Behavior</h4>
+            <div className="space-y-2 text-xs text-gray-400">
+              <p>• <span className="font-medium text-white">Clicking a course:</span> Opens the details panel on the right and keeps the highlight active until you close the panel.</p>
+              <p>• <span className="font-medium text-white">Hovering a course:</span> Temporarily highlights relationships. Unhovering returns the view to normal (or to the clicked course's highlight if one is selected).</p>
+              <p>• <span className="font-medium text-white">Dragging nodes:</span> Repositions them for better visibility. The layout is flexible and won't snap back.</p>
+              <p>• <span className="font-medium text-white">Zooming:</span> Use scroll wheel or pinch gesture to zoom in/out. The zoom is centered on your cursor position.</p>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-700 pt-6">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Course Information</h4>
+            <div className="space-y-2 text-xs text-gray-400">
+              <p>• Click any node to see the full course title, description, units, prerequisites text, and corequisites.</p>
+              <p>• Use quick search (Ctrl+F / ⌘F) to find specific courses by code and automatically zoom to them.</p>
+              <p>• The details panel shows comprehensive information pulled from the SFU course catalog.</p>
+            </div>
           </div>
         </div>
       </ScrollArea>
